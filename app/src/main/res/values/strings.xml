@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Battery Status</string>
+    <string name="app_name">Pepper</string>
 
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
@@ -45,8 +45,8 @@
     <string name="longitude_label">Longitude</string>
     <string name="last_update_time_label">Last location update time</string>
 
-    <string name="start_updates">Start updates</string>
-    <string name="stop_updates">Stop updates</string>
+    <string name="start_updates">Start Location updates</string>
+    <string name="stop_updates">Stop Location updates</string>
     <string name="location_updated_message">Location updated</string>
 
 </resources>
