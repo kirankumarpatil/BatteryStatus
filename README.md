@@ -1,6 +1,6 @@
 # Battery Status
 ## About the project
-This andorid app is used to update the Battery Level of a device to the firebase.
+This andorid app is used to update the Battery Level of a device to the Jarvis Application.
 
 ## Steps to use the App
 1. When you install the App for the first time, it prompts for the Device Id which is configred in the Jarvis Application for the corresponding device.
