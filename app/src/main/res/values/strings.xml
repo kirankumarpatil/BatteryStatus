@@ -48,5 +48,7 @@
     <string name="start_updates">Start Location updates</string>
     <string name="stop_updates">Stop Location updates</string>
     <string name="location_updated_message">Location updated</string>
+    <string name="register_this_device">Register this Device</string>
+    <string name="this_device_not_registered_do_you_want_to_register">This device not Registered. Do you want to register?</string>
 
 </resources>

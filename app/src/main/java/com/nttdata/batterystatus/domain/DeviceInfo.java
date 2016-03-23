@@ -127,7 +127,7 @@ public class DeviceInfo {
         this.imei = imei;
     }
 
-    public boolean isOutdated() {
+    public boolean getIsOutdated() {
         return isOutdated;
     }
 

@@ -1,70 +1,61 @@
 package com.nttdata.batterystatus;
 
-import android.Manifest;
-import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.IntentSender;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
-import android.location.Location;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.telephony.TelephonyManager;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ExpandableListView;
-import android.widget.TextView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
-import static android.os.Build.*;
 
+import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
+import com.firebase.client.FirebaseError;
+import com.firebase.client.ValueEventListener;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
-import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.LocationSettingsRequest;
-import com.google.android.gms.location.LocationSettingsResult;
-import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.maps.model.LatLng;
+import com.nttdata.batterystatus.domain.DeviceInfo;
 import com.nttdata.batterystatus.service.LocationTransitionsIntentService;
 
 import java.io.IOException;
-import java.text.DateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static android.os.Build.BRAND;
+import static android.os.Build.MANUFACTURER;
+import static android.os.Build.MODEL;
+import static android.os.Build.SERIAL;
+import static android.os.Build.VERSION;
+
 
 public class BatteryStatusActivity extends AppCompatActivity implements ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status> {
 
 
-    private Firebase mFirebaseRef;
-
     protected static final String TAG = "BatteryStatusActivity";
+    private static final String FIREBASE_URL = "https://myjarvis.firebaseio.com/assets";
     /**
      * Provides the entry point to Google Play services.
      */
@@ -73,6 +64,12 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
     protected String mLatitudeLabel;
     protected String mLongitudeLabel;
     protected String mLastUpdateTimeLabel;
+    /**
+     * The list of geofences used in this sample.
+     */
+    protected ArrayList<Geofence> mGeofenceList;
+    Context ctx = null;
+    private Firebase mFirebaseRef;
     /**
      * Used to persist application state about whether geofences were added.
      */
@@ -83,36 +80,79 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
     private List<String> deviceInfoData  = new ArrayList<String>();
     private List<String> batteryStatusData  = new ArrayList<>();
     private List<String> deviceLocationData  = new ArrayList<>();
-
     private String deviceCode;
     private ArrayList<String> expandableTitleList = new ArrayList<>();
-
-    private static final String FIREBASE_URL = "https://myjarvis.firebaseio.com/assets";
-
     private double latitude;
-
     private double longitude;
-
     /**
      * Used when requesting to add or remove geofences.
      */
     private PendingIntent mGeofencePendingIntent;
-
-    /**
-     * The list of geofences used in this sample.
-     */
-    protected ArrayList<Geofence> mGeofenceList;
-
     /**
      * Used to keep track of whether geofences were added.
      */
     private boolean mGeofencesAdded;
-
     // Buttons for kicking off the process of adding or removing geofences.
     private Button mAddGeofencesButton;
     private Button mRemoveGeofencesButton;
+    private Boolean isdeviceExist = false;
+    private DeviceInfo deviceInfo = null;
+    private BroadcastReceiver batteryInfoReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i("tttttt", deviceCode);
+            /*batteryInfo.setText(
 
+                   ""
+            );*/
 
+            Firebase batterStatusRef = null;
+            if (null != deviceCode && !deviceCode.equals("")) {
+                int health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, 0);
+                int icon_small = intent.getIntExtra(BatteryManager.EXTRA_ICON_SMALL, 0);
+                int currentLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                int level = -1;
+                if (currentLevel >= 0 && scale > 0) {
+                    level = (currentLevel * 100) / scale;
+                }
+                int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+
+                int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, 0);
+                Boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                        status == BatteryManager.BATTERY_STATUS_FULL;
+                batterStatusRef = mFirebaseRef.child("batteryStatus");
+                batterStatusRef.child("isCharging").setValue(isCharging);
+                batterStatusRef.child("level").setValue(level);
+
+                String sourceofPower = "";
+                switch (plugged) {
+                    case BatteryManager.BATTERY_PLUGGED_USB:
+                        sourceofPower = "USB";
+                        break;
+                    case BatteryManager.BATTERY_PLUGGED_AC:
+                        sourceofPower = "AC Charger";
+                        break;
+                    case BatteryManager.BATTERY_PLUGGED_WIRELESS:
+                        sourceofPower = "Wireless";
+                        break;
+                    default:
+                        sourceofPower = "Not Charging";
+                }
+
+                batteryStatusData.clear();
+                batteryStatusData.add("Level: " + level + "%");
+                batteryStatusData.add("Is Charging: " + isCharging);
+                batteryStatusData.add("Device is connected: " + sourceofPower);
+
+                expandableListAdapter.notifyDataSetChanged();
+                expandableListAdapter = new ExpandableListAdapter(context, expandableTitleList, expandableListData);
+                expandableListView.setAdapter(expandableListAdapter);
+
+            }
+        }
+
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -143,7 +183,28 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         TelephonyManager telephonyManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
         // Get the value of mGeofencesAdded from SharedPreferences. Set to false as a default.
         deviceCode = (SERIAL == null || SERIAL.length()==0)?telephonyManager.getDeviceId():SERIAL;
-        this.registerReceiver(this.batteryInfoReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+
+        mFirebaseRef = new Firebase(Constants.FIREBASE_URL).child(deviceCode);
+        mFirebaseRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("Inside the onDataChange", dataSnapshot.exists() + "");
+                isdeviceExist = dataSnapshot.exists();
+
+                if (isdeviceExist) deviceInfo = dataSnapshot.getValue(DeviceInfo.class);
+            }
+
+            @Override
+            public void onCancelled(FirebaseError firebaseError) {
+
+            }
+        });
+
+
+        if (isdeviceExist)
+            this.registerReceiver(this.batteryInfoReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        else
+            showOverLay();
 
         mGeofenceList = new ArrayList<>();
         buildGoogleApiClient();
@@ -151,8 +212,8 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         setExpandableTitleList(expandableTitleList);
         deviceInfoData.add("Model: " + MODEL);
         deviceInfoData.add("MANUFACTURER: " + MANUFACTURER);
-        deviceInfoData.add("Brand" + BRAND);
-
+        deviceInfoData.add("Brand: " + BRAND);
+        deviceInfoData.add("Version: " + VERSION.RELEASE);
 
         Geocoder geocoder = new Geocoder(this, Locale.ENGLISH);
         try {
@@ -172,7 +233,6 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
 
     }
 
-
     /**
      * Set Expandable View Titles
      * @param expandableTitleList
@@ -184,13 +244,11 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
 
     }
 
-
     private void updateExpandableViewData(HashMap<String, List<String>> expandableViewData) {
         expandableViewData.put("Device Information", deviceInfoData);
         expandableViewData.put("Battery Status", batteryStatusData);
         expandableViewData.put("Device Location", deviceLocationData);
     }
-
 
     private void buildGoogleApiClient() {
         if (mGoogleApiClient == null) {
@@ -226,62 +284,6 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         super.onStop();
         mGoogleApiClient.disconnect();
     }
-
-
-    private BroadcastReceiver batteryInfoReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            Log.i("tttttt",deviceCode);
-            /*batteryInfo.setText(
-
-                   ""
-            );*/
-            if (null != deviceCode && !deviceCode.equals("")) {
-                int health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, 0);
-                int icon_small = intent.getIntExtra(BatteryManager.EXTRA_ICON_SMALL, 0);
-                int currentLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-                int level = -1;
-                if (currentLevel >= 0 && scale > 0) {
-                    level = (currentLevel * 100) / scale;
-                }
-                int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
-
-                int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, 0);
-                Boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                        status == BatteryManager.BATTERY_STATUS_FULL;
-                mFirebaseRef = new Firebase(FIREBASE_URL).child(deviceCode).child("batteryStatus");
-                mFirebaseRef.child("isCharging").setValue(isCharging);
-                mFirebaseRef.child("level").setValue(level);
-
-                String sourceofPower = "";
-                switch (plugged) {
-                    case BatteryManager.BATTERY_PLUGGED_USB:
-                        sourceofPower = "USB";
-                        break;
-                    case BatteryManager.BATTERY_PLUGGED_AC:
-                        sourceofPower = "AC Charger";
-                        break;
-                    case BatteryManager.BATTERY_PLUGGED_WIRELESS:
-                        sourceofPower = "Wireless";
-                        break;
-                    default:
-                        sourceofPower = "Not Charging";
-                }
-
-                batteryStatusData.clear();
-                batteryStatusData.add( "Level: " + level + "%");
-                batteryStatusData.add( "Is Charging: " + isCharging );
-                batteryStatusData.add("Device is connected: " + sourceofPower);
-
-                expandableListAdapter.notifyDataSetChanged();
-                expandableListAdapter = new ExpandableListAdapter(context, expandableTitleList, expandableListData);
-                expandableListView.setAdapter(expandableListAdapter);
-
-            }
-            }
-
-    };
 
     @Override
     public void onConnected(Bundle bundle) {
@@ -350,6 +352,29 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         }
     }
 
+    /**
+     * Removes geofences, which stops further notifications when the device enters or exits
+     * previously registered geofences.
+     */
+    public void removeGeofencesButtonHandler(View view) {
+        if (!mGoogleApiClient.isConnected()) {
+            Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            // Remove geofences.
+            LocationServices.GeofencingApi.removeGeofences(
+                    mGoogleApiClient,
+                    // This is the same pending intent that was used in addGeofences().
+                    getGeofencePendingIntent()
+            ).setResultCallback(this); // Result processed in onResult().
+        } catch (SecurityException securityException) {
+            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
+            //  logSecurityException(securityException);
+            Log.e(TAG, securityException.getMessage());
+        }
+    }
+
     private PendingIntent getGeofencePendingIntent() {
         // Reuse the PendingIntent if we already have it.
         if (mGeofencePendingIntent != null) {
@@ -408,7 +433,6 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         return builder.build();
     }
 
-
     private void setButtonsEnabledState() {
         if (mGeofencesAdded) {
             mAddGeofencesButton.setEnabled(false);
@@ -419,4 +443,40 @@ public class BatteryStatusActivity extends AppCompatActivity implements Connecti
         }
     }
 
+    private void saveDevice() {
+        TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
+        DeviceInfo deviceInfo = new DeviceInfo();
+        deviceInfo.setAssetId(deviceCode);
+        deviceInfo.setBrand(BRAND);
+        deviceInfo.setCreatedOn(System.currentTimeMillis());
+        deviceInfo.setImei(telephonyManager.getDeviceId());
+        deviceInfo.setImei(VERSION.RELEASE);
+        mFirebaseRef.setValue(deviceInfo);
+    }
+
+    private void showOverLay() {
+
+        ctx = this;
+        final Dialog dialog = new Dialog(this, android.R.style.Theme_Translucent_NoTitleBar);
+
+        dialog.setContentView(R.layout.overlay_layout);
+
+        LinearLayout layout = (LinearLayout) dialog.findViewById(R.id.overlayLayout);
+
+        layout.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+
+            public void onClick(View arg0) {
+
+                saveDevice();
+                ctx.registerReceiver(batteryInfoReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                dialog.dismiss();
+            }
+
+        });
+
+        dialog.show();
+
+    }
 }
